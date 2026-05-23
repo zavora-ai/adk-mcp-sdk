@@ -1,0 +1,34 @@
+# mcp-server.toml — ADK-Rust Enterprise MCP Server Manifest
+#
+# This file declares a server's identity, capabilities, tools, risk level,
+# and credential requirements. The ADK-Rust Enterprise registry reads this
+# manifest to auto-register and validate compatibility.
+
+server_id = "mcp_example_prod"
+display_name = "Example MCP Server"
+version = "0.1.0"
+domain = "platform"
+sdk_version = "0.1.0"
+risk_level = "low"
+writes_allowed = "none"
+transports = ["stdio", "streamable_http"]
+credentials = []
+governance_gates = []
+environments = ["development", "staging", "production"]
+
+# --- Tool declarations ---
+# Each tool declares its risk class and credential needs.
+
+[[tools]]
+name = "list_items"
+description = "List items with optional filters"
+risk_class = "read_only"
+requires_approval = false
+credential_bindings = []
+
+[[tools]]
+name = "create_item"
+description = "Create a new item"
+risk_class = "internal_write"
+requires_approval = true
+credential_bindings = ["vault://example-api-key"]

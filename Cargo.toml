@@ -1,0 +1,22 @@
+[package]
+name = "adk-mcp-sdk"
+version = "0.1.0"
+edition = "2024"
+authors = ["James Karanja Maina"]
+license = "Apache-2.0"
+description = "Enterprise SDK traits for ADK-Rust MCP servers — health checks, tool metadata, risk classes, credential binding, and registry compatibility"
+repository = "https://github.com/zavora-ai/adk-mcp-sdk"
+homepage = "https://www.zavora.ai"
+keywords = ["mcp", "enterprise", "adk", "agent", "registry"]
+categories = ["development-tools", "api-bindings"]
+rust-version = "1.85"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+async-trait = "0.1"
+toml = "0.8"
+
+[dev-dependencies]
+tokio = { version = "1.43", features = ["full"] }
