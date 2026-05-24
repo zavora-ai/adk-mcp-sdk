@@ -13,33 +13,6 @@ The shared contract between MCP servers and the [ADK-Rust Enterprise](https://en
   <img src="https://raw.githubusercontent.com/zavora-ai/adk-mcp-sdk/main/docs/assets/architecture.svg" alt="ADK MCP SDK Architecture" width="800"/>
 </p>
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     ADK-Rust Enterprise Registry                 │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │ ServerManifest│  │  HealthCheck │  │  Governance Engine   │  │
-│  │  (mcp-server │  │  (async poll)│  │  (RiskClass + gates) │  │
-│  │   .toml)     │  │              │  │                      │  │
-│  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘  │
-│         │                  │                     │              │
-├─────────┼──────────────────┼─────────────────────┼──────────────┤
-│         ▼                  ▼                     ▼              │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │              adk-mcp-sdk (this crate)                   │    │
-│  │  ServerManifest · HealthCheck · ToolMeta · RiskClass    │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│         ▲                  ▲                     ▲              │
-├─────────┼──────────────────┼─────────────────────┼──────────────┤
-│  ┌──────┴───────┐  ┌──────┴───────┐  ┌──────────┴───────────┐  │
-│  │ mcp-identity │  │  mcp-cicd    │  │ mcp-credentials-vault│  │
-│  │ mcp-itsm     │  │  mcp-github  │  │ mcp-artifact-store   │  │
-│  │ mcp-registry │  │  mcp-a2a     │  │ mcp-device-mgmt      │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
-│                        18 MCP Servers                           │
-└─────────────────────────────────────────────────────────────────┘
-```
-
 ## What This Crate Provides
 
 | Export | Type | Purpose |

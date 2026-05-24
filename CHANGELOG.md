@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.2] - 2025-05-24
+
+### Added
+- Architecture SVG diagram (renders on crates.io via absolute GitHub raw URL)
+- Removed ASCII fallback diagram — SVG is the single source of truth
+
 ## [0.1.1] - 2025-05-24
 
 ### Added

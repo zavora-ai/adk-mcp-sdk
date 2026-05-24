@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="system-ui,-apple-system,sans-serif" font-size="13">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6366f1"/>
+      <stop offset="100%" style="stop-color:#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="sdkGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#059669"/>
+      <stop offset="100%" style="stop-color:#10b981"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="520" rx="12" fill="#0f172a"/>
+
+  <!-- Registry header -->
+  <rect x="30" y="20" width="840" height="60" rx="8" fill="url(#headerGrad)" opacity="0.9"/>
+  <text x="450" y="48" text-anchor="middle" fill="white" font-size="18" font-weight="bold">ADK-Rust Enterprise Registry</text>
+  <text x="450" y="68" text-anchor="middle" fill="#e2e8f0" font-size="11">Auto-onboarding · Health monitoring · Tool governance · Risk classification</text>
+
+  <!-- Registry components -->
+  <rect x="50" y="100" width="200" height="70" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="150" y="125" text-anchor="middle" fill="#94a3b8" font-size="10">MANIFEST</text>
+  <text x="150" y="145" text-anchor="middle" fill="#f1f5f9" font-size="13" font-weight="600">ServerManifest</text>
+  <text x="150" y="162" text-anchor="middle" fill="#64748b" font-size="10">mcp-server.toml</text>
+
+  <rect x="280" y="100" width="200" height="70" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="380" y="125" text-anchor="middle" fill="#94a3b8" font-size="10">MONITORING</text>
+  <text x="380" y="145" text-anchor="middle" fill="#f1f5f9" font-size="13" font-weight="600">HealthCheck</text>
+  <text x="380" y="162" text-anchor="middle" fill="#64748b" font-size="10">async health probe</text>
+
+  <rect x="510" y="100" width="200" height="70" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="610" y="125" text-anchor="middle" fill="#94a3b8" font-size="10">GOVERNANCE</text>
+  <text x="610" y="145" text-anchor="middle" fill="#f1f5f9" font-size="13" font-weight="600">RiskClass + Gates</text>
+  <text x="610" y="162" text-anchor="middle" fill="#64748b" font-size="10">8 risk levels · approvals</text>
+
+  <rect x="740" y="100" width="110" height="70" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="795" y="125" text-anchor="middle" fill="#94a3b8" font-size="10">TOOLS</text>
+  <text x="795" y="145" text-anchor="middle" fill="#f1f5f9" font-size="13" font-weight="600">ToolMeta</text>
+  <text x="795" y="162" text-anchor="middle" fill="#64748b" font-size="10">credentials</text>
+
+  <!-- Arrows down -->
+  <line x1="150" y1="170" x2="150" y2="200" stroke="#6366f1" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="380" y1="170" x2="380" y2="200" stroke="#6366f1" stroke-width="2"/>
+  <line x1="610" y1="170" x2="610" y2="200" stroke="#6366f1" stroke-width="2"/>
+  <line x1="795" y1="170" x2="795" y2="200" stroke="#6366f1" stroke-width="2"/>
+
+  <!-- SDK bar -->
+  <rect x="30" y="200" width="840" height="60" rx="8" fill="url(#sdkGrad)" opacity="0.9"/>
+  <text x="450" y="228" text-anchor="middle" fill="white" font-size="16" font-weight="bold">adk-mcp-sdk</text>
+  <text x="450" y="248" text-anchor="middle" fill="#d1fae5" font-size="11">ServerManifest · HealthCheck · HealthStatus · ToolMeta · RiskClass · RiskLevel · Transport · WritesAllowed</text>
+
+  <!-- Arrows down from SDK -->
+  <line x1="100" y1="260" x2="100" y2="300" stroke="#10b981" stroke-width="2"/>
+  <line x1="250" y1="260" x2="250" y2="300" stroke="#10b981" stroke-width="2"/>
+  <line x1="400" y1="260" x2="400" y2="300" stroke="#10b981" stroke-width="2"/>
+  <line x1="550" y1="260" x2="550" y2="300" stroke="#10b981" stroke-width="2"/>
+  <line x1="700" y1="260" x2="700" y2="300" stroke="#10b981" stroke-width="2"/>
+  <line x1="830" y1="260" x2="830" y2="300" stroke="#10b981" stroke-width="2"/>
+
+  <!-- Server boxes row 1 -->
+  <rect x="30" y="300" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="100" y="322" text-anchor="middle" fill="#fbbf24" font-size="10">SECURITY</text>
+  <text x="100" y="340" text-anchor="middle" fill="#f1f5f9" font-size="11">credentials-vault</text>
+
+  <rect x="180" y="300" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="250" y="322" text-anchor="middle" fill="#fbbf24" font-size="10">SECURITY</text>
+  <text x="250" y="340" text-anchor="middle" fill="#f1f5f9" font-size="11">identity</text>
+
+  <rect x="330" y="300" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="400" y="322" text-anchor="middle" fill="#38bdf8" font-size="10">PLATFORM</text>
+  <text x="400" y="340" text-anchor="middle" fill="#f1f5f9" font-size="11">registry</text>
+
+  <rect x="480" y="300" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="550" y="322" text-anchor="middle" fill="#38bdf8" font-size="10">PLATFORM</text>
+  <text x="550" y="340" text-anchor="middle" fill="#f1f5f9" font-size="11">environment</text>
+
+  <rect x="630" y="300" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="700" y="322" text-anchor="middle" fill="#a78bfa" font-size="10">AGENTS</text>
+  <text x="700" y="340" text-anchor="middle" fill="#f1f5f9" font-size="11">a2a</text>
+
+  <rect x="780" y="300" width="90" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="825" y="322" text-anchor="middle" fill="#a78bfa" font-size="10">AGENTS</text>
+  <text x="825" y="340" text-anchor="middle" fill="#f1f5f9" font-size="11">acp</text>
+
+  <!-- Server boxes row 2 -->
+  <rect x="30" y="360" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="100" y="382" text-anchor="middle" fill="#fb923c" font-size="10">DEVOPS</text>
+  <text x="100" y="400" text-anchor="middle" fill="#f1f5f9" font-size="11">cicd</text>
+
+  <rect x="180" y="360" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="250" y="382" text-anchor="middle" fill="#fb923c" font-size="10">DEV-TOOLS</text>
+  <text x="250" y="400" text-anchor="middle" fill="#f1f5f9" font-size="11">github</text>
+
+  <rect x="330" y="360" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="400" y="382" text-anchor="middle" fill="#fb923c" font-size="10">DEV-TOOLS</text>
+  <text x="400" y="400" text-anchor="middle" fill="#f1f5f9" font-size="11">code-search</text>
+
+  <rect x="480" y="360" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="550" y="382" text-anchor="middle" fill="#4ade80" font-size="10">OPERATIONS</text>
+  <text x="550" y="400" text-anchor="middle" fill="#f1f5f9" font-size="11">itsm</text>
+
+  <rect x="630" y="360" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="700" y="382" text-anchor="middle" fill="#4ade80" font-size="10">OPERATIONS</text>
+  <text x="700" y="400" text-anchor="middle" fill="#f1f5f9" font-size="11">knowledge-base</text>
+
+  <rect x="780" y="360" width="90" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="825" y="382" text-anchor="middle" fill="#f87171" font-size="10">ENDPOINT</text>
+  <text x="825" y="400" text-anchor="middle" fill="#f1f5f9" font-size="11">device</text>
+
+  <!-- Server boxes row 3 -->
+  <rect x="30" y="420" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="100" y="442" text-anchor="middle" fill="#f87171" font-size="10">SECURITY</text>
+  <text x="100" y="460" text-anchor="middle" fill="#f1f5f9" font-size="11">security-advisory</text>
+
+  <rect x="180" y="420" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="250" y="442" text-anchor="middle" fill="#fb923c" font-size="10">DEV-TOOLS</text>
+  <text x="250" y="460" text-anchor="middle" fill="#f1f5f9" font-size="11">package-registry</text>
+
+  <rect x="330" y="420" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="400" y="442" text-anchor="middle" fill="#fb923c" font-size="10">DEV-TOOLS</text>
+  <text x="400" y="460" text-anchor="middle" fill="#f1f5f9" font-size="11">test-runner</text>
+
+  <rect x="480" y="420" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="550" y="442" text-anchor="middle" fill="#38bdf8" font-size="10">PLATFORM</text>
+  <text x="550" y="460" text-anchor="middle" fill="#f1f5f9" font-size="11">artifact-store</text>
+
+  <rect x="630" y="420" width="140" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="700" y="442" text-anchor="middle" fill="#38bdf8" font-size="10">PLATFORM</text>
+  <text x="700" y="460" text-anchor="middle" fill="#f1f5f9" font-size="11">session-memory</text>
+
+  <rect x="780" y="420" width="90" height="50" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="825" y="442" text-anchor="middle" fill="#a78bfa" font-size="10">GOVERNANCE</text>
+  <text x="825" y="460" text-anchor="middle" fill="#f1f5f9" font-size="9">policy</text>
+
+  <!-- Footer -->
+  <text x="450" y="500" text-anchor="middle" fill="#64748b" font-size="11">18 MCP Servers · adk-mcp-sdk v0.1 · rmcp 1.7 · Rust Edition 2024</text>
+</svg>
