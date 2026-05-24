@@ -18,6 +18,7 @@ The shared contract between MCP servers and the [ADK-Rust Enterprise](https://en
 | Export | Type | Purpose |
 |--------|------|---------|
 | `ServerManifest` | Struct | TOML-loadable server identity, capabilities, and tool declarations |
+| `ServerManifest::validate()` | Method | Validates manifest fields, returns list of errors |
 | `HealthCheck` | Trait | Async health probe for registry monitoring |
 | `HealthStatus` | Struct | Health response with status, message, and latency |
 | `ToolMeta` | Struct | Per-tool metadata with risk class and credential bindings |
@@ -87,14 +88,21 @@ requires_approval = true
 credential_bindings = ["vault://my-api-key"]
 ```
 
-### 3. Load Manifest in Code
+### 3. Load and Validate Manifest
 
 ```rust
 use adk_mcp_sdk::ServerManifest;
 use std::path::Path;
 
-// From file
+// Load and validate on startup
 let manifest = ServerManifest::from_file(Path::new("mcp-server.toml"))?;
+let errors = manifest.validate();
+if !errors.is_empty() {
+    for e in &errors {
+        eprintln!("manifest error: {e}");
+    }
+    std::process::exit(1);
+}
 
 // From string
 let manifest = ServerManifest::from_toml(include_str!("../mcp-server.toml"))?;

@@ -61,6 +61,46 @@ impl ServerManifest {
             .map_err(|e| ManifestError::Io(e.to_string()))?;
         Self::from_toml(&content).map_err(|e| ManifestError::Parse(e.to_string()))
     }
+
+    /// Validate manifest fields. Returns a list of validation errors (empty = valid).
+    pub fn validate(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+
+        if self.server_id.is_empty() {
+            errors.push("server_id is empty".into());
+        }
+        if self.display_name.is_empty() {
+            errors.push("display_name is empty".into());
+        }
+        if self.version.is_empty() {
+            errors.push("version is empty".into());
+        }
+        if self.transports.is_empty() {
+            errors.push("at least one transport is required".into());
+        }
+
+        let mut seen_tools = std::collections::HashSet::new();
+        for tool in &self.tools {
+            if tool.name.is_empty() {
+                errors.push("tool has empty name".into());
+            } else if !seen_tools.insert(&tool.name) {
+                errors.push(format!("duplicate tool name: {}", tool.name));
+            }
+            for cred in &tool.credential_bindings {
+                if !cred.starts_with("vault://") {
+                    errors.push(format!("tool '{}': credential '{}' must use vault:// URI", tool.name, cred));
+                }
+            }
+        }
+
+        for cred in &self.credentials {
+            if !cred.starts_with("vault://") {
+                errors.push(format!("credential '{}' must use vault:// URI", cred));
+            }
+        }
+
+        errors
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

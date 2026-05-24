@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.3] - 2025-05-24
+
+### Added
+- `ServerManifest::validate()` — validates manifest fields and returns a list of errors
+  - Checks for empty `server_id`, `display_name`, `version`
+  - Requires at least one transport
+  - Detects duplicate tool names
+  - Enforces `vault://` URI format for all credential bindings
+
+### Changed
+- Template server now enforces manifest validation on startup
+
 ## [0.1.2] - 2025-05-24
 
 ### Added

@@ -1,6 +1,6 @@
 [package]
 name = "adk-mcp-sdk"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 authors = ["James Karanja Maina"]
 license = "Apache-2.0"
