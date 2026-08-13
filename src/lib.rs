@@ -13,7 +13,9 @@ pub mod tools;
 
 pub use health::{HealthCheck, HealthStatus};
 pub use manifest::ServerManifest;
-pub use protocol::{Mcp2026Policy, approval_gate, caller_identity};
+pub use protocol::{
+    Mcp2026Policy, approval_gate, caller_identity, current_caller_identity, scope_caller_identity,
+};
 pub use risk::RiskClass;
 pub use tools::ToolMeta;
 
@@ -54,6 +56,7 @@ macro_rules! mcp_2026_server {
                         &[$($approval_tool),*],
                         $cache_ttl_ms,
                     );
+                    let caller = context.client_info().map(|client| client.name);
 
                     if let Some(response) = $crate::approval_gate(&request, &context, &policy)? {
                         return Ok(response);
@@ -80,7 +83,7 @@ macro_rules! mcp_2026_server {
                                             owned_context,
                                         ),
                                     );
-                                    ::tokio::select! {
+                                    $crate::scope_caller_identity(caller, async move { ::tokio::select! {
                                         _ = task_context.cancelled() => {
                                             Err(::rmcp::task_manager::TaskExit::Cancelled)
                                         }
@@ -94,7 +97,7 @@ macro_rules! mcp_2026_server {
                                             )),
                                             Err(error) => Err(::rmcp::task_manager::TaskExit::Error(error)),
                                         }
-                                    }
+                                    }}).await
                                 })
                             },
                         );
@@ -103,10 +106,10 @@ macro_rules! mcp_2026_server {
                         ));
                     }
 
-                    <$server>::tool_router()
+                    $crate::scope_caller_identity(caller, <$server>::tool_router()
                         .call(::rmcp::handler::server::tool::ToolCallContext::new(
                             self, request, context,
-                        ))
+                        )))
                         .await
                 }
 

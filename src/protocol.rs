@@ -12,6 +12,25 @@ use rmcp::{
 };
 use serde::{Deserialize, Serialize};
 
+tokio::task_local! {
+    static CALLER_IDENTITY: Option<String>;
+}
+
+/// Run a tool under its request-scoped caller identity. Server implementations
+/// can read this with [`current_caller_identity`] for audit attribution without
+/// accepting a spoofable actor field from tool arguments.
+pub async fn scope_caller_identity<F>(identity: Option<String>, future: F) -> F::Output
+where
+    F: std::future::Future,
+{
+    CALLER_IDENTITY.scope(identity, future).await
+}
+
+/// Identity bound by the shared server handler for the current tool call.
+pub fn current_caller_identity() -> Option<String> {
+    CALLER_IDENTITY.try_with(Clone::clone).ok().flatten()
+}
+
 /// Shared defaults for tools-only MCP servers.
 #[derive(Debug, Clone, Copy)]
 pub struct Mcp2026Policy {
