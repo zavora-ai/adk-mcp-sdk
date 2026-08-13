@@ -66,7 +66,7 @@ server_id = "mcp_my_server"
 display_name = "My MCP Server"
 version = "1.0.0"
 domain = "platform"
-sdk_version = "0.1.0"
+sdk_version = "0.2.0"
 risk_level = "medium"
 writes_allowed = "gated"
 transports = ["stdio"]
@@ -117,7 +117,7 @@ let manifest = ServerManifest {
     transports: vec![adk_mcp_sdk::manifest::Transport::Stdio],
     risk_level: adk_mcp_sdk::risk::RiskLevel::Medium,
     writes_allowed: adk_mcp_sdk::manifest::WritesAllowed::Gated,
-    sdk_version: "0.1.0".into(),
+    sdk_version: "0.2.0".into(),
     tools: vec![],
     credentials: vec![],
     governance_gates: vec![],
@@ -313,7 +313,7 @@ This SDK provides **metadata and governance** — it does not replace [rmcp](htt
 
 ```toml
 [dependencies]
-adk-mcp-sdk = "0.1"                    # Registry contract
+adk-mcp-sdk = "0.2"                    # Registry and MCP 2026 runtime contract
 rmcp = { version = "1.7", features = ["server", "transport-io", "macros"] }  # MCP protocol
 ```
 
