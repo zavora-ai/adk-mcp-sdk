@@ -3,8 +3,9 @@ use rmcp::{
     ClientHandler, ServiceExt,
     handler::server::wrapper::Parameters,
     model::{
-        CacheScope, CallToolResponse, ClientCapabilities, ClientInfo, GetTaskParams,
-        Implementation, ProtocolVersion, TaskPayload,
+        CacheScope, CallToolResponse, ClientCapabilities, ClientInfo, ElicitRequestParams,
+        ElicitResult, ElicitationAction, GetTaskParams, Implementation, ProtocolVersion,
+        TaskPayload,
     },
     schemars, tool, tool_router,
 };
@@ -35,6 +36,15 @@ impl ClientHandler for CurrentClient {
         info.protocol_version = ProtocolVersion::V_2026_07_28;
         info
     }
+
+    async fn create_elicitation(
+        &self,
+        _request: ElicitRequestParams,
+        _context: rmcp::service::RequestContext<rmcp::service::RoleClient>,
+    ) -> Result<ElicitResult, rmcp::ErrorData> {
+        Ok(ElicitResult::new(ElicitationAction::Accept)
+            .with_content(serde_json::json!({"action": "accept"})))
+    }
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -51,12 +61,17 @@ impl TestServer {
     async fn echo(&self, Parameters(input): Parameters<EchoInput>) -> String {
         input.value
     }
+
+    #[tool(description = "Protected identity test")]
+    async fn danger(&self) -> String {
+        adk_mcp_sdk::current_caller_identity().unwrap_or_else(|| "missing".into())
+    }
 }
 
 mcp_2026_server! {
     server: TestServer,
     task_tools: ["echo"],
-    approval_tools: [],
+    approval_tools: ["danger"],
     cache_ttl_ms: 60_000,
 }
 
@@ -142,6 +157,36 @@ async fn current_client_receives_cache_hints_and_task_lifecycle() {
         tokio::task::yield_now().await;
     }
 
+    client.cancel().await.unwrap();
+    server.await.unwrap();
+}
+
+#[tokio::test]
+async fn protected_call_completes_sealed_mrtr_and_binds_identity() {
+    // SAFETY: this integration-test process sets the key before making its only
+    // protected call; the SDK snapshots it on first use.
+    unsafe {
+        std::env::set_var(
+            "MCP_REQUEST_STATE_KEY",
+            "integration-test-signing-key-at-least-32-bytes",
+        );
+    }
+    let (server_transport, client_transport) = tokio::io::duplex(8_192);
+    let server = tokio::spawn(async move {
+        TestServer
+            .serve(server_transport)
+            .await
+            .unwrap()
+            .waiting()
+            .await
+            .unwrap();
+    });
+    let client = CurrentClient.serve(client_transport).await.unwrap();
+    let result = client
+        .call_tool(rmcp::model::CallToolRequestParams::new("danger"))
+        .await
+        .unwrap();
+    assert_eq!(result.content[0].as_text().unwrap().text, "current-test");
     client.cancel().await.unwrap();
     server.await.unwrap();
 }
