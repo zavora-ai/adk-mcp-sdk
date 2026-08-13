@@ -23,6 +23,7 @@ The shared contract between MCP servers and the [ADK-Rust Enterprise](https://en
 | `HealthStatus` | Struct | Health response with status, message, and latency |
 | `ToolMeta` | Struct | Per-tool metadata with risk class and credential bindings |
 | `RiskClass` | Enum | Tool-level risk classification (8 levels) |
+| `mcp_2026_server!` | Macro | Stateless identity, Tasks, sealed MRTR approvals, and cache hints |
 | `RiskLevel` | Enum | Server-level risk designation (4 levels) |
 | `Transport` | Enum | Supported transport protocols (stdio, SSE, HTTP) |
 | `WritesAllowed` | Enum | Write permission level (none, gated, approved) |
@@ -32,7 +33,7 @@ The shared contract between MCP servers and the [ADK-Rust Enterprise](https://en
 
 ```toml
 [dependencies]
-adk-mcp-sdk = "0.1"
+adk-mcp-sdk = "0.2"
 ```
 
 ## Quick Start
@@ -63,9 +64,9 @@ impl HealthCheck for MyServer {
 ```toml
 server_id = "mcp_my_server"
 display_name = "My MCP Server"
-version = "1.0.0"
+version = "0.2.0"
 domain = "platform"
-sdk_version = "0.1.0"
+sdk_version = "0.2.0"
 risk_level = "medium"
 writes_allowed = "gated"
 transports = ["stdio"]
@@ -116,7 +117,7 @@ let manifest = ServerManifest {
     transports: vec![adk_mcp_sdk::manifest::Transport::Stdio],
     risk_level: adk_mcp_sdk::risk::RiskLevel::Medium,
     writes_allowed: adk_mcp_sdk::manifest::WritesAllowed::Gated,
-    sdk_version: "0.1.0".into(),
+    sdk_version: "0.2.0".into(),
     tools: vec![],
     credentials: vec![],
     governance_gates: vec![],
@@ -205,12 +206,19 @@ fn default_limit() -> u32 { 20 }
 #[derive(Clone)]
 pub struct MyServer;
 
-#[tool_router(server_handler)]
+#[tool_router]
 impl MyServer {
     #[tool(description = "Search items by query")]
     async fn search(&self, Parameters(input): Parameters<SearchInput>) -> String {
         format!("Found results for '{}' (limit {})", input.query, input.limit)
     }
+}
+
+adk_mcp_sdk::mcp_2026_server! {
+    server: MyServer,
+    task_tools: ["search"],
+    approval_tools: [],
+    cache_ttl_ms: 60_000,
 }
 
 #[async_trait::async_trait]
@@ -228,6 +236,32 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+## MCP 2026-07-28 runtime contract
+
+SDK 0.2 provides a shared handler for the new stateless protocol while retaining
+legacy initialization for MCP 2025-11-25 clients:
+
+- Per-request protocol, client identity, and capability metadata are read from
+  `_meta` by rmcp. Protected calls require a non-empty client identity.
+- Selected operations are returned as SEP-2663 Tasks when the client advertises
+  Tasks. Clients can get, update, and cancel those tasks.
+- Manifest-gated tools use SEP-2322 MRTR elicitation. The approval state is
+  HMAC-protected, bound to the caller, tool, and arguments, and expires after
+  two minutes. Legacy clients fail closed for protected tools.
+- Tool lists carry SEP-2549 `ttlMs` and public cache scope. rmcp removes these
+  fields automatically for legacy responses.
+- Ordinary legacy tool calls continue to work after the initialize handshake.
+
+Set `MCP_REQUEST_STATE_KEY` to at least 32 high-entropy bytes on every instance
+that can receive a retry. All instances in a deployment must share the same key
+so an MRTR flow can resume on any replica. Task storage is process-local in this
+release; route task follow-ups to the creating instance or replace the manager
+with a durable store before scale-to-zero deployment.
+
+The minimum supported Rust version is **1.94.1**. CI should test both MCP
+2025-11-25 and 2026-07-28 behavior, including an ordinary legacy call, task
+lifecycle, approval rejection/tamper handling, and cache-hint serialization.
 
 ## Servers Using This SDK
 
@@ -279,7 +313,7 @@ This SDK provides **metadata and governance** — it does not replace [rmcp](htt
 
 ```toml
 [dependencies]
-adk-mcp-sdk = "0.1"                    # Registry contract
+adk-mcp-sdk = "0.2"                    # Registry and MCP 2026 runtime contract
 rmcp = { version = "1.7", features = ["server", "transport-io", "macros"] }  # MCP protocol
 ```
 
