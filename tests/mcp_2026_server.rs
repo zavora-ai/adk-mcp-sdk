@@ -3,11 +3,13 @@ use rmcp::{
     ClientHandler, ServiceExt,
     handler::server::wrapper::Parameters,
     model::{
-        CacheScope, CallToolResponse, ClientCapabilities, ClientInfo, ElicitRequestParams,
-        ElicitResult, ElicitationAction, GetTaskParams, Implementation, ProtocolVersion,
-        TaskPayload,
+        CacheScope, CallToolResponse, ClientCapabilities, ClientInfo, ClientJsonRpcMessage,
+        ClientRequest, ElicitRequestParams, ElicitResult, ElicitationAction, GetTaskParams,
+        Implementation, ListToolsRequest, ProtocolVersion, RequestId, RequestMetaObject,
+        ServerJsonRpcMessage, TaskPayload,
     },
     schemars, tool, tool_router,
+    transport::{IntoTransport, Transport},
 };
 
 #[derive(Clone)]
@@ -189,4 +191,33 @@ async fn protected_call_completes_sealed_mrtr_and_binds_identity() {
     assert_eq!(result.content[0].as_text().unwrap().text, "current-test");
     client.cancel().await.unwrap();
     server.await.unwrap();
+}
+
+#[tokio::test]
+async fn stateless_request_lists_tools_without_initialize() {
+    let (server_transport, client_transport) = tokio::io::duplex(8_192);
+    let server = tokio::spawn(async move { TestServer.serve(server_transport).await.unwrap() });
+    let mut client = IntoTransport::<rmcp::RoleClient, _, _>::into_transport(client_transport);
+    let mut meta = RequestMetaObject::new();
+    meta.set_protocol_version(ProtocolVersion::V_2026_07_28);
+    meta.set_client_info(Implementation::new("handshakeless-test", "1"));
+    meta.set_client_capabilities(ClientCapabilities::default());
+    let mut request = ListToolsRequest {
+        method: Default::default(),
+        params: None,
+        extensions: Default::default(),
+    };
+    request.extensions.insert(meta);
+    client
+        .send(ClientJsonRpcMessage::request(
+            ClientRequest::ListToolsRequest(request),
+            RequestId::Number(1),
+        ))
+        .await
+        .unwrap();
+    assert!(matches!(
+        client.receive().await,
+        Some(ServerJsonRpcMessage::Response(_))
+    ));
+    server.await.unwrap().cancel().await.unwrap();
 }
