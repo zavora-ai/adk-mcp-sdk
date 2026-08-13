@@ -64,7 +64,7 @@ impl HealthCheck for MyServer {
 ```toml
 server_id = "mcp_my_server"
 display_name = "My MCP Server"
-version = "1.0.0"
+version = "0.2.0"
 domain = "platform"
 sdk_version = "0.2.0"
 risk_level = "medium"
