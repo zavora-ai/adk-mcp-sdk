@@ -57,8 +57,8 @@ impl ServerManifest {
 
     /// Load manifest from a file path.
     pub fn from_file(path: &std::path::Path) -> Result<Self, ManifestError> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| ManifestError::Io(e.to_string()))?;
+        let content =
+            std::fs::read_to_string(path).map_err(|e| ManifestError::Io(e.to_string()))?;
         Self::from_toml(&content).map_err(|e| ManifestError::Parse(e.to_string()))
     }
 
@@ -88,7 +88,10 @@ impl ServerManifest {
             }
             for cred in &tool.credential_bindings {
                 if !cred.starts_with("vault://") {
-                    errors.push(format!("tool '{}': credential '{}' must use vault:// URI", tool.name, cred));
+                    errors.push(format!(
+                        "tool '{}': credential '{}' must use vault:// URI",
+                        tool.name, cred
+                    ));
                 }
             }
         }

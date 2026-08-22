@@ -14,7 +14,9 @@ pub mod tools;
 pub use health::{HealthCheck, HealthStatus};
 pub use manifest::ServerManifest;
 pub use protocol::{
-    Mcp2026Policy, approval_gate, caller_identity, current_caller_identity, scope_caller_identity,
+    Mcp2026Policy, approval_gate, caller_identity, current_caller_identity, current_task_context,
+    enrich_tools, normalize_call_response, scope_caller_identity, scope_task_context,
+    set_current_task_status,
 };
 pub use risk::RiskClass;
 pub use tools::ToolMeta;
@@ -32,8 +34,57 @@ macro_rules! mcp_2026_server {
     (
         server: $server:ty,
         task_tools: [$($task_tool:literal),* $(,)?],
+        task_ttl_overrides: [$(($ttl_tool:literal, $ttl_ms:expr)),* $(,)?],
+        approval_tools: [$($approval_tool:literal),* $(,)?],
+        mutating_tools: [$($mutating_tool:literal),* $(,)?],
+        destructive_tools: [$($destructive_tool:literal),* $(,)?],
+        idempotent_tools: [$($idempotent_tool:literal),* $(,)?],
+        cache_ttl_ms: $cache_ttl_ms:expr,
+        instructions: $instructions:expr $(,)?
+    ) => {
+        $crate::mcp_2026_server! {
+            @impl
+            server: $server,
+            task_tools: [$($task_tool),*],
+            task_ttl_overrides: [$(($ttl_tool, $ttl_ms)),*],
+            approval_tools: [$($approval_tool),*],
+            mutating_tools: [$($mutating_tool),*],
+            destructive_tools: [$($destructive_tool),*],
+            idempotent_tools: [$($idempotent_tool),*],
+            cache_ttl_ms: $cache_ttl_ms,
+            instructions: $instructions,
+        }
+    };
+    (
+        server: $server:ty,
+        task_tools: [$($task_tool:literal),* $(,)?],
         approval_tools: [$($approval_tool:literal),* $(,)?],
         cache_ttl_ms: $cache_ttl_ms:expr $(,)?
+    ) => {
+        $crate::mcp_2026_server! {
+            @impl
+            server: $server,
+            task_tools: [$($task_tool),*],
+            task_ttl_overrides: [],
+            approval_tools: [$($approval_tool),*],
+            mutating_tools: [$($approval_tool),*],
+            destructive_tools: [],
+            idempotent_tools: [],
+            cache_ttl_ms: $cache_ttl_ms,
+            instructions: "Stateless MCP server with structured results, risk annotations, Tasks when applicable, sealed MRTR approvals, per-request identity, and cache hints. Legacy initialization remains supported.",
+        }
+    };
+    (
+        @impl
+        server: $server:ty,
+        task_tools: [$($task_tool:literal),* $(,)?],
+        task_ttl_overrides: [$(($ttl_tool:literal, $ttl_ms:expr)),* $(,)?],
+        approval_tools: [$($approval_tool:literal),* $(,)?],
+        mutating_tools: [$($mutating_tool:literal),* $(,)?],
+        destructive_tools: [$($destructive_tool:literal),* $(,)?],
+        idempotent_tools: [$($idempotent_tool:literal),* $(,)?],
+        cache_ttl_ms: $cache_ttl_ms:expr,
+        instructions: $instructions:expr $(,)?
     ) => {
         const _: () = {
             fn __adk_tasks() -> &'static ::rmcp::task_manager::TaskManager {
@@ -55,6 +106,11 @@ macro_rules! mcp_2026_server {
                         &[$($task_tool),*],
                         &[$($approval_tool),*],
                         $cache_ttl_ms,
+                    ).with_tool_policies(
+                        &[$(($ttl_tool, $ttl_ms)),*],
+                        &[$($mutating_tool),*],
+                        &[$($destructive_tool),*],
+                        &[$($idempotent_tool),*],
                     );
                     let caller = context.client_info().map(|client| client.name);
 
@@ -70,7 +126,7 @@ macro_rules! mcp_2026_server {
                         let owned_context = context.clone();
                         let task = __adk_tasks().spawn(
                             ::rmcp::task_manager::TaskOptions::new()
-                                .with_ttl_ms(policy.task_ttl_ms)
+                                .with_ttl_ms(policy.task_ttl_ms(request.name.as_ref()))
                                 .with_poll_interval_ms(policy.task_poll_interval_ms)
                                 .with_status_message(format!("Running {}", request.name)),
                             move |task_context| {
@@ -83,21 +139,24 @@ macro_rules! mcp_2026_server {
                                             owned_context,
                                         ),
                                     );
-                                    $crate::scope_caller_identity(caller, async move { ::tokio::select! {
-                                        _ = task_context.cancelled() => {
-                                            Err(::rmcp::task_manager::TaskExit::Cancelled)
-                                        }
-                                        result = call => match result {
-                                            Ok(::rmcp::model::CallToolResponse::Complete(result)) => Ok(result),
-                                            Ok(_) => Err(::rmcp::task_manager::TaskExit::Error(
-                                                ::rmcp::ErrorData::internal_error(
-                                                    "nested task or input-required response is not supported",
-                                                    None,
-                                                ),
-                                            )),
-                                            Err(error) => Err(::rmcp::task_manager::TaskExit::Error(error)),
-                                        }
-                                    }}).await
+                                    let cancellation = task_context.clone();
+                                    $crate::scope_task_context(Some(task_context),
+                                        $crate::scope_caller_identity(caller, async move { ::tokio::select! {
+                                            _ = cancellation.cancelled() => {
+                                                Err(::rmcp::task_manager::TaskExit::Cancelled)
+                                            }
+                                            result = call => match result.map($crate::normalize_call_response) {
+                                                Ok(::rmcp::model::CallToolResponse::Complete(result)) => Ok(result),
+                                                Ok(_) => Err(::rmcp::task_manager::TaskExit::Error(
+                                                    ::rmcp::ErrorData::internal_error(
+                                                        "nested task or input-required response is not supported",
+                                                        None,
+                                                    ),
+                                                )),
+                                                Err(error) => Err(::rmcp::task_manager::TaskExit::Error(error)),
+                                            }
+                                        }})
+                                    ).await
                                 })
                             },
                         );
@@ -111,6 +170,7 @@ macro_rules! mcp_2026_server {
                             self, request, context,
                         )))
                         .await
+                        .map($crate::normalize_call_response)
                 }
 
                 async fn list_tools(
@@ -118,8 +178,18 @@ macro_rules! mcp_2026_server {
                     _request: Option<::rmcp::model::PaginatedRequestParams>,
                     _context: ::rmcp::service::RequestContext<::rmcp::service::RoleServer>,
                 ) -> ::std::result::Result<::rmcp::model::ListToolsResult, ::rmcp::ErrorData> {
+                    let policy = $crate::Mcp2026Policy::new(
+                        &[$($task_tool),*],
+                        &[$($approval_tool),*],
+                        $cache_ttl_ms,
+                    ).with_tool_policies(
+                        &[$(($ttl_tool, $ttl_ms)),*],
+                        &[$($mutating_tool),*],
+                        &[$($destructive_tool),*],
+                        &[$($idempotent_tool),*],
+                    );
                     Ok(::rmcp::model::ListToolsResult::with_all_items(
-                        <$server>::tool_router().list_all(),
+                        $crate::enrich_tools(<$server>::tool_router().list_all(), &policy),
                     )
                     .with_ttl_ms($cache_ttl_ms)
                     .with_cache_scope(::rmcp::model::CacheScope::Public))
@@ -152,17 +222,26 @@ macro_rules! mcp_2026_server {
                 }
 
                 fn get_info(&self) -> ::rmcp::model::ServerInfo {
-                    ::rmcp::model::ServerInfo::new(
+                    let policy = $crate::Mcp2026Policy::new(
+                        &[$($task_tool),*],
+                        &[$($approval_tool),*],
+                        $cache_ttl_ms,
+                    );
+                    let capabilities = if policy.has_task_tools() {
                         ::rmcp::model::ServerCapabilities::builder()
                             .enable_tools()
                             .enable_tasks()
-                            .build(),
+                            .build()
+                    } else {
+                        ::rmcp::model::ServerCapabilities::builder()
+                            .enable_tools()
+                            .build()
+                    };
+                    ::rmcp::model::ServerInfo::new(
+                        capabilities,
                     )
                     .with_server_info(::rmcp::model::Implementation::from_build_env())
-                    .with_instructions(
-                        "Stateless MCP 2026 server with Tasks, sealed MRTR approvals, per-request identity, and cache hints. Legacy initialization remains supported."
-                            .to_string(),
-                    )
+                    .with_instructions($instructions.to_string())
                 }
             }
         };

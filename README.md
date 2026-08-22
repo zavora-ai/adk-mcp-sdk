@@ -33,7 +33,7 @@ The shared contract between MCP servers and the [ADK-Rust Enterprise](https://en
 
 ```toml
 [dependencies]
-adk-mcp-sdk = "0.2"
+adk-mcp-sdk = "0.3"
 ```
 
 ## Quick Start
@@ -64,9 +64,9 @@ impl HealthCheck for MyServer {
 ```toml
 server_id = "mcp_my_server"
 display_name = "My MCP Server"
-version = "0.2.0"
+version = "0.3.0"
 domain = "platform"
-sdk_version = "0.2.0"
+sdk_version = "0.3.0"
 risk_level = "medium"
 writes_allowed = "gated"
 transports = ["stdio"]
@@ -117,7 +117,7 @@ let manifest = ServerManifest {
     transports: vec![adk_mcp_sdk::manifest::Transport::Stdio],
     risk_level: adk_mcp_sdk::risk::RiskLevel::Medium,
     writes_allowed: adk_mcp_sdk::manifest::WritesAllowed::Gated,
-    sdk_version: "0.2.0".into(),
+    sdk_version: "0.3.0".into(),
     tools: vec![],
     credentials: vec![],
     governance_gates: vec![],
@@ -217,8 +217,13 @@ impl MyServer {
 adk_mcp_sdk::mcp_2026_server! {
     server: MyServer,
     task_tools: ["search"],
+    task_ttl_overrides: [("search", 120_000)],
     approval_tools: [],
-    cache_ttl_ms: 60_000,
+    mutating_tools: [],
+    destructive_tools: [],
+    idempotent_tools: [],
+    cache_ttl_ms: 86_400_000,
+    instructions: "Search the local item catalog. Results are read-only.",
 }
 
 #[async_trait::async_trait]
@@ -239,18 +244,25 @@ async fn main() -> anyhow::Result<()> {
 
 ## MCP 2026-07-28 runtime contract
 
-SDK 0.2 provides a shared handler for the new stateless protocol while retaining
+SDK 0.3 provides a shared handler for the new stateless protocol while retaining
 legacy initialization for MCP 2025-11-25 clients:
 
 - Per-request protocol, client identity, and capability metadata are read from
   `_meta` by rmcp. Protected calls require a non-empty client identity.
 - Selected operations are returned as SEP-2663 Tasks when the client advertises
-  Tasks. Clients can get, update, and cancel those tasks.
+  Tasks. Clients can get, update, and cancel those tasks. The extension is not
+  advertised when `task_tools` is empty, and per-tool TTL overrides prevent
+  legitimate long-running work from expiring early.
 - Manifest-gated tools use SEP-2322 MRTR elicitation. The approval state is
   HMAC-protected, bound to the caller, tool, and arguments, and expires after
   two minutes. Legacy clients fail closed for protected tools.
 - Tool lists carry SEP-2549 `ttlMs` and public cache scope. rmcp removes these
   fields automatically for legacy responses.
+- JSON object text returned by existing tools is mirrored into
+  `structuredContent`; `{ "ok": false }` is surfaced as a tool-level error.
+  Tool listings include an object `outputSchema`, title, and standard behavior
+  annotations. These annotations remain hints and never replace MRTR or policy
+  enforcement.
 - Ordinary legacy tool calls continue to work after the initialize handshake.
 
 Set `MCP_REQUEST_STATE_KEY` to at least 32 high-entropy bytes on every instance
@@ -313,8 +325,8 @@ This SDK provides **metadata and governance** — it does not replace [rmcp](htt
 
 ```toml
 [dependencies]
-adk-mcp-sdk = "0.2"                    # Registry and MCP 2026 runtime contract
-rmcp = { version = "1.7", features = ["server", "transport-io", "macros"] }  # MCP protocol
+adk-mcp-sdk = "0.3"                     # Registry and MCP 2026 runtime contract
+rmcp = { version = "=3.1.2", features = ["server", "transport-io", "macros"] } # MCP protocol
 ```
 
 - **rmcp** handles: tool routing, JSON-RPC, stdio/HTTP transport, schema generation

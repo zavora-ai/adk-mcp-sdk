@@ -1,19 +1,25 @@
 //! Shared policy for the MCP 2026-07-28 stateless protocol.
 
-use std::{sync::OnceLock, time::Duration};
+use std::{
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 
 use rmcp::{
     ErrorData,
     model::{
         CallToolRequestParams, CallToolResponse, ElicitRequest, ElicitRequestParams, InputRequest,
-        InputRequests, InputRequiredResult, ProtocolVersion, RequestStateCodec, SealOptions,
+        InputRequests, InputRequiredResult, ProtocolVersion, RequestStateCodec, SealOptions, Tool,
+        ToolAnnotations,
     },
     service::{RequestContext, RoleServer},
+    task_manager::TaskContext,
 };
 use serde::{Deserialize, Serialize};
 
 tokio::task_local! {
     static CALLER_IDENTITY: Option<String>;
+    static TASK_CONTEXT: Option<TaskContext>;
 }
 
 /// Run a tool under its request-scoped caller identity. Server implementations
@@ -31,11 +37,35 @@ pub fn current_caller_identity() -> Option<String> {
     CALLER_IDENTITY.try_with(Clone::clone).ok().flatten()
 }
 
+/// Run a tool with access to its protocol-native task context.
+pub async fn scope_task_context<F>(context: Option<TaskContext>, future: F) -> F::Output
+where
+    F: std::future::Future,
+{
+    TASK_CONTEXT.scope(context, future).await
+}
+
+/// Return the active task context when a tool was materialized as a Task.
+pub fn current_task_context() -> Option<TaskContext> {
+    TASK_CONTEXT.try_with(Clone::clone).ok().flatten()
+}
+
+/// Update the status of the current Task. Direct and legacy tool calls are a no-op.
+pub fn set_current_task_status(message: impl Into<String>) {
+    if let Some(context) = current_task_context() {
+        context.set_status_message(message);
+    }
+}
+
 /// Shared defaults for tools-only MCP servers.
 #[derive(Debug, Clone, Copy)]
 pub struct Mcp2026Policy {
     task_tools: &'static [&'static str],
+    task_ttl_overrides: &'static [(&'static str, u64)],
     approval_tools: &'static [&'static str],
+    mutating_tools: &'static [&'static str],
+    destructive_tools: &'static [&'static str],
+    idempotent_tools: &'static [&'static str],
     pub cache_ttl_ms: u64,
     pub task_ttl_ms: u64,
     pub task_poll_interval_ms: u64,
@@ -49,11 +79,40 @@ impl Mcp2026Policy {
     ) -> Self {
         Self {
             task_tools,
+            task_ttl_overrides: &[],
             approval_tools,
+            mutating_tools: approval_tools,
+            destructive_tools: &[],
+            idempotent_tools: &[],
             cache_ttl_ms,
             task_ttl_ms: 15 * 60 * 1_000,
             task_poll_interval_ms: 250,
         }
+    }
+
+    pub const fn with_tool_policies(
+        mut self,
+        task_ttl_overrides: &'static [(&'static str, u64)],
+        mutating_tools: &'static [&'static str],
+        destructive_tools: &'static [&'static str],
+        idempotent_tools: &'static [&'static str],
+    ) -> Self {
+        self.task_ttl_overrides = task_ttl_overrides;
+        self.mutating_tools = mutating_tools;
+        self.destructive_tools = destructive_tools;
+        self.idempotent_tools = idempotent_tools;
+        self
+    }
+
+    pub fn has_task_tools(&self) -> bool {
+        !self.task_tools.is_empty()
+    }
+
+    pub fn task_ttl_ms(&self, name: &str) -> u64 {
+        self.task_ttl_overrides
+            .iter()
+            .find_map(|(tool, ttl)| (*tool == name).then_some(*ttl))
+            .unwrap_or(self.task_ttl_ms)
     }
 
     pub fn is_task_tool(&self, name: &str) -> bool {
@@ -63,6 +122,92 @@ impl Mcp2026Policy {
     pub fn requires_approval(&self, name: &str) -> bool {
         self.approval_tools.contains(&name)
     }
+
+    pub fn is_mutating_tool(&self, name: &str) -> bool {
+        self.mutating_tools.contains(&name)
+    }
+
+    pub fn is_destructive_tool(&self, name: &str) -> bool {
+        self.destructive_tools.contains(&name)
+    }
+
+    pub fn is_idempotent_tool(&self, name: &str) -> bool {
+        !self.is_mutating_tool(name) || self.idempotent_tools.contains(&name)
+    }
+}
+
+/// Add a generic JSON object schema and MCP behavior annotations to a tool catalog.
+///
+/// Server handlers may still declare a more precise output schema; this only fills
+/// schemas and annotation fields that the tool macro left empty.
+pub fn enrich_tools(mut tools: Vec<Tool>, policy: &Mcp2026Policy) -> Vec<Tool> {
+    let output_schema = Arc::new(
+        serde_json::json!({
+            "type": "object",
+            "description": "Structured JSON result. Tool-specific fields are documented in the tool description and server README.",
+            "additionalProperties": true
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    );
+    for tool in &mut tools {
+        if tool.output_schema.is_none() {
+            tool.output_schema = Some(output_schema.clone());
+        }
+        let name = tool.name.as_ref();
+        let title = name
+            .split('_')
+            .filter(|part| !part.is_empty())
+            .map(|part| {
+                let mut chars = part.chars();
+                chars
+                    .next()
+                    .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
+                    .unwrap_or_default()
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        let mut annotations = tool.annotations.take().unwrap_or_default();
+        annotations.title.get_or_insert(title.clone());
+        annotations
+            .read_only_hint
+            .get_or_insert(!policy.is_mutating_tool(name));
+        annotations
+            .destructive_hint
+            .get_or_insert(policy.is_destructive_tool(name));
+        annotations
+            .idempotent_hint
+            .get_or_insert(policy.is_idempotent_tool(name));
+        annotations.open_world_hint.get_or_insert(false);
+        tool.title.get_or_insert(title);
+        tool.annotations = Some(ToolAnnotations::from_raw(
+            annotations.title,
+            annotations.read_only_hint,
+            annotations.destructive_hint,
+            annotations.idempotent_hint,
+            annotations.open_world_hint,
+        ));
+    }
+    tools
+}
+
+/// Promote legacy JSON text results to MCP structured content and mark
+/// `{ "ok": false }` responses as tool-level errors.
+pub fn normalize_call_response(response: CallToolResponse) -> CallToolResponse {
+    let CallToolResponse::Complete(mut result) = response else {
+        return response;
+    };
+    if result.structured_content.is_none()
+        && let Some(text) = result.content.first().and_then(|content| content.as_text())
+        && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text.text)
+    {
+        if value.get("ok").and_then(serde_json::Value::as_bool) == Some(false) {
+            result.is_error = Some(true);
+        }
+        result.structured_content = Some(value);
+    }
+    CallToolResponse::Complete(result)
 }
 
 #[derive(Debug, Serialize, Deserialize)]

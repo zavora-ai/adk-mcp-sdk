@@ -1,6 +1,6 @@
 use adk_mcp_sdk::mcp_2026_server;
 use rmcp::{
-    ClientHandler, ServiceExt,
+    ClientHandler, ServerHandler, ServiceExt,
     handler::server::wrapper::Parameters,
     model::{
         CacheScope, CallToolResponse, ClientCapabilities, ClientInfo, ClientJsonRpcMessage,
@@ -68,13 +68,46 @@ impl TestServer {
     async fn danger(&self) -> String {
         adk_mcp_sdk::current_caller_identity().unwrap_or_else(|| "missing".into())
     }
+
+    #[tool(description = "Return a legacy JSON text result")]
+    async fn json_status(&self) -> String {
+        serde_json::json!({"ok": true, "status": "ready"}).to_string()
+    }
+
+    #[tool(description = "Return a legacy JSON text error")]
+    async fn json_error(&self) -> String {
+        serde_json::json!({"ok": false, "error": "expected failure"}).to_string()
+    }
 }
 
 mcp_2026_server! {
     server: TestServer,
     task_tools: ["echo"],
+    task_ttl_overrides: [("echo", 120_000)],
     approval_tools: ["danger"],
+    mutating_tools: ["danger"],
+    destructive_tools: ["danger"],
+    idempotent_tools: [],
     cache_ttl_ms: 60_000,
+    instructions: "Test server instructions",
+}
+
+#[derive(Clone)]
+struct NoTaskServer;
+
+#[tool_router]
+impl NoTaskServer {
+    #[tool(description = "Read a value")]
+    async fn read(&self) -> String {
+        "value".into()
+    }
+}
+
+mcp_2026_server! {
+    server: NoTaskServer,
+    task_tools: [],
+    approval_tools: [],
+    cache_ttl_ms: 86_400_000,
 }
 
 #[tokio::test]
@@ -124,6 +157,16 @@ async fn current_client_receives_cache_hints_and_task_lifecycle() {
     let tools = client.list_tools(None).await.unwrap();
     assert_eq!(tools.ttl_ms, Some(60_000));
     assert_eq!(tools.cache_scope, Some(CacheScope::Public));
+    assert!(tools.tools.iter().all(|tool| tool.output_schema.is_some()));
+    assert!(tools.tools.iter().all(|tool| tool.annotations.is_some()));
+    let danger = tools
+        .tools
+        .iter()
+        .find(|tool| tool.name == "danger")
+        .unwrap();
+    let annotations = danger.annotations.as_ref().unwrap();
+    assert_eq!(annotations.read_only_hint, Some(false));
+    assert_eq!(annotations.destructive_hint, Some(true));
 
     let response = client
         .call_tool_once(
@@ -140,6 +183,7 @@ async fn current_client_receives_cache_hints_and_task_lifecycle() {
         CallToolResponse::Task(created) => created,
         other => panic!("expected task, got {other:?}"),
     };
+    assert_eq!(created.task.ttl_ms, Some(120_000));
     loop {
         let task = client
             .peer()
@@ -161,6 +205,47 @@ async fn current_client_receives_cache_hints_and_task_lifecycle() {
 
     client.cancel().await.unwrap();
     server.await.unwrap();
+}
+
+#[tokio::test]
+async fn legacy_json_text_is_promoted_to_structured_content_and_errors() {
+    let (server_transport, client_transport) = tokio::io::duplex(8_192);
+    let server = tokio::spawn(async move {
+        TestServer
+            .serve(server_transport)
+            .await
+            .unwrap()
+            .waiting()
+            .await
+            .unwrap();
+    });
+    let client = CurrentClient.serve(client_transport).await.unwrap();
+
+    let success = client
+        .call_tool(rmcp::model::CallToolRequestParams::new("json_status"))
+        .await
+        .unwrap();
+    assert_eq!(success.structured_content.unwrap()["status"], "ready");
+    assert_eq!(success.is_error, Some(false));
+
+    let error = client
+        .call_tool(rmcp::model::CallToolRequestParams::new("json_error"))
+        .await
+        .unwrap();
+    assert_eq!(
+        error.structured_content.unwrap()["error"],
+        "expected failure"
+    );
+    assert_eq!(error.is_error, Some(true));
+
+    client.cancel().await.unwrap();
+    server.await.unwrap();
+}
+
+#[test]
+fn tasks_capability_is_only_advertised_when_used() {
+    assert!(TestServer.get_info().capabilities.supports_tasks());
+    assert!(!NoTaskServer.get_info().capabilities.supports_tasks());
 }
 
 #[tokio::test]

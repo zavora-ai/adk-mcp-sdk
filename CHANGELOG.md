@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0] - 2026-08-22
+
+### Added
+- Automatic promotion of JSON text tool results to MCP `structuredContent`, including tool-level error classification for `{ "ok": false }` responses.
+- Generic JSON output schemas, human-readable tool titles, and MCP read-only, destructive, idempotent, and open-world annotations.
+- Per-tool Task TTL overrides and task-local status context through `current_task_context` and `set_current_task_status`.
+- Server-specific runtime instructions and tests covering structured results, annotations, conditional Tasks capability advertisement, and TTL overrides.
+
+### Fixed
+- Servers with no task-capable tools no longer advertise the Tasks extension.
+- Long-running tools can set TTLs that exceed their maximum execution timeout; this prevents the task manager from expiring valid work.
+
+### Changed
+- Static tool catalogs are intended to use long public cache TTLs. Tool results are not cached by this policy.
+- rmcp is pinned exactly to 3.1.2.
+
 ## [0.2.0] - 2026-08-13
 
 ### Changed
