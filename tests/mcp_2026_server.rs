@@ -306,3 +306,38 @@ async fn stateless_request_lists_tools_without_initialize() {
     ));
     server.await.unwrap().cancel().await.unwrap();
 }
+
+#[tokio::test]
+async fn handshakeless_discovery_reports_supported_versions_and_capabilities() {
+    let (server_transport, client_transport) = tokio::io::duplex(8_192);
+    let server = tokio::spawn(async move { TestServer.serve(server_transport).await.unwrap() });
+    let mut client = IntoTransport::<rmcp::RoleClient, _, _>::into_transport(client_transport);
+    let request: ClientJsonRpcMessage = serde_json::from_value(serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "server/discover",
+        "params": {
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientInfo": {"name": "discover-test", "version": "1"},
+                "io.modelcontextprotocol/clientCapabilities": {}
+            }
+        }
+    }))
+    .unwrap();
+    client.send(request).await.unwrap();
+    let response = client.receive().await.unwrap();
+    let value = serde_json::to_value(response).unwrap();
+    assert!(
+        value["result"]["supportedVersions"]
+            .as_array()
+            .is_some_and(
+                |versions| versions.iter().any(|version| version == "2025-11-25")
+                    && versions.iter().any(|version| version == "2026-07-28")
+            )
+    );
+    assert!(
+        value["result"]["capabilities"]["extensions"]["io.modelcontextprotocol/tasks"].is_object()
+    );
+    server.await.unwrap().cancel().await.unwrap();
+}
